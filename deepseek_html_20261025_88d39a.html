@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EnergíaLab · Simulador de producción energética</title>
+<style>
+:root{
+  --bg:#eef2f7; --bg-grid: rgba(31,111,235,.05);
+  --panel:#ffffff; --panel-2:#f7fafc;
+  --ink:#0d1a2b; --muted:#5c6b80; --line:#d9e1ea;
+  --accent:#1f6feb; --accent-soft: rgba(31,111,235,.10);
+  --good:#16a34a; --warn:#d97706; --bad:#dc2626;
+  --house-off:#cfd8e3; --house-off-roof:#b6c2d1;
+  --house-on:#f5b301; --house-on-roof:#e08a00;
+  --shadow: 0 1px 2px rgba(13,26,43,.06), 0 10px 28px -14px rgba(13,26,43,.22);
+  --radius: 14px; --c:#8b5cf6;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+[data-theme="dark"]{
+  --bg:#070d18; --bg-grid: rgba(77,159,255,.06);
+  --panel:#0e1728; --panel-2:#0b1322;
+  --ink:#e6eefb; --muted:#8ea3bd; --line:#1c2a40;
+  --accent:#4d9fff; --accent-soft: rgba(77,159,255,.14);
+  --house-off:#23324b; --house-off-roof:#1a2638;
+  --house-on:#ffc53d; --house-on-roof:#e59b00;
+  --shadow: 0 1px 2px rgba(0,0,0,.5), 0 14px 34px -16px rgba(0,0,0,.9);
+}
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--bg-grid) 1px, transparent 1px), linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  color: var(--ink);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px; line-height: 1.45;
+  transition: background-color .35s ease, color .35s ease;
+  -webkit-font-smoothing: antialiased;
+}
+.topbar{
+  position: sticky; top:0; z-index: 50;
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+  padding: 12px 22px;
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+@supports not (background: color-mix(in srgb, red, blue)){ .topbar{ background: var(--panel); } }
+.brand{ display:flex; align-items:center; gap:12px; min-width:0; }
+.logo{
+  width:38px; height:38px; flex:none; border-radius:11px;
+  display:grid; place-items:center;
+  background: linear-gradient(145deg, var(--accent), #0d4bb5);
+  box-shadow: 0 6px 16px -8px var(--accent);
+}
+.logo svg{ width:20px; height:20px; fill:#fff; }
+.brand-text h1{ margin:0; font-size:16px; letter-spacing:-.01em; font-weight:800; }
+.brand-text p{ margin:1px 0 0; font-size:11.5px; color: var(--muted); }
+.topbar-actions{ display:flex; align-items:center; gap:10px; }
+.badge{
+  font-size:10.5px; letter-spacing:.09em; text-transform:uppercase; font-weight:700;
+  color: var(--muted); border:1px solid var(--line); border-radius:999px;
+  padding: 4px 10px; white-space:nowrap;
+}
+.theme-toggle{
+  width:38px; height:38px; border-radius:11px; cursor:pointer;
+  border:1px solid var(--line); background: var(--panel-2); color: var(--ink);
+  display:grid; place-items:center; transition: .2s;
+}
+.theme-toggle:hover{ border-color: var(--accent); transform: translateY(-1px); }
+.theme-toggle svg{ width:18px; height:18px; stroke: currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+[data-theme="light"] .icon-sun{ display:none; }
+[data-theme="dark"] .icon-moon{ display:none; }
+.layout{
+  max-width: 1420px; margin: 0 auto; padding: 18px 20px 0;
+  display:grid; grid-template-columns: 392px minmax(0,1fr); gap:18px; align-items:start;
+}
+@media (max-width: 1080px){ .layout{ grid-template-columns: 1fr; } }
+.col{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+.panel{
+  background: var(--panel); border:1px solid var(--line); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 16px 16px 18px;
+  transition: background-color .35s, border-color .35s;
+}
+.panel > h2{
+  margin:0 0 14px; font-size:11px; font-weight:800;
+  letter-spacing:.13em; text-transform:uppercase; color: var(--muted);
+  display:flex; align-items:center; gap:8px;
+}
+.panel > h2 .num{
+  width:20px; height:20px; border-radius:6px; flex:none;
+  display:grid; place-items:center;
+  background: var(--accent-soft); color: var(--accent);
+  font-size:11px; letter-spacing:0;
+}
+.field{ margin-bottom:14px; }
+.field:last-of-type{ margin-bottom:0; }
+.field-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:4px; }
+.field-head label{ font-size:12.5px; font-weight:600; color: var(--ink); }
+.field-head output{
+  font-family: var(--mono); font-size:12.5px; font-weight:700;
+  color: var(--accent); white-space:nowrap;
+  transition: color .2s;
+}
+.range-scale{
+  display:flex; justify-content:space-between;
+  font-family: var(--mono); font-size:10px; color: var(--muted); margin-top:-2px;
+}
+input[type="range"]{
+  -webkit-appearance:none; appearance:none;
+  width:100%; height:20px; background:transparent; cursor:pointer; margin:0; display:block;
+}
+input[type="range"]::-webkit-slider-runnable-track{ height:4px; border-radius:2px; background: var(--line); }
+input[type="range"]::-moz-range-track{ height:4px; border-radius:2px; background: var(--line); }
+input[type="range"]::-webkit-slider-thumb{
+  -webkit-appearance:none; appearance:none;
+  width:16px; height:16px; margin-top:-6px; border-radius:50%;
+  background: var(--panel); border:2px solid var(--c);
+  box-shadow: 0 1px 4px rgba(0,0,0,.2); transition: transform .15s;
+}
+input[type="range"]:hover::-webkit-slider-thumb{ transform: scale(1.14); }
+input[type="range"]::-moz-range-thumb{
+  width:14px; height:14px; border-radius:50%;
+  background: var(--panel); border:2px solid var(--c);
+  box-shadow: 0 1px 4px rgba(0,0,0,.2);
+}
+/* umbrales bajo el slider de casas */
+.threshold-bar{
+  position:relative; height:18px; margin: 0 0 2px;
+  transition: opacity .3s;
+}
+.threshold-bar::before{
+  content:''; position:absolute; left:0; right:0; bottom:6px;
+  height:1px; background: var(--line);
+}
+.threshold-bar::after{
+  content:''; position:absolute; left:0; right:0; bottom:3px;
+  height:6px;
+  background-image: repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 10%);
+  opacity:.7;
+}
+.threshold-tick{
+  position:absolute; top:2px; width:9px; height:9px; border-radius:50%;
+  transform: translateX(-50%);
+  border:2px solid var(--panel); box-shadow: 0 0 0 1px currentColor;
+  transition: left .25s ease, transform .2s;
+  cursor: help; z-index: 2;
+}
+.threshold-tick:hover{ transform: translateX(-50%) scale(1.3); }
+.threshold-tick.current{ box-shadow: 0 0 0 1px currentColor, 0 0 0 4px color-mix(in srgb, currentColor 25%, transparent); }
+@supports not (color: color-mix(in srgb, red, blue)){ .threshold-tick.current{ box-shadow: 0 0 0 1px currentColor, 0 0 0 4px rgba(0,0,0,.12); } }
+.mini-stats{
+  margin-top:14px; padding-top:12px; border-top:1px dashed var(--line);
+  display:grid; gap:6px;
+}
+.mini-stats > div{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; font-size:12px; color: var(--muted); }
+.mini-stats strong{ font-family: var(--mono); font-size:12.5px; color: var(--ink); font-weight:700; }
+/* tarjetas de fuente con indicador de estado */
+.source-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.source-btn{
+  position:relative; overflow:hidden;
+  display:flex; align-items:center; gap:8px;
+  padding:9px 10px; border-radius:10px;
+  border:1px solid var(--line); background: var(--panel-2);
+  color: var(--ink); font: inherit; font-size:12px; font-weight:600;
+  text-align:left; cursor:pointer; transition: border-color .18s, transform .18s;
+}
+.source-btn::after{
+  content:''; position:absolute; inset:0; border-radius:inherit;
+  background: var(--sc); opacity:0; transition: opacity .2s; pointer-events:none;
+}
+.source-btn:hover{ border-color: var(--sc); transform: translateY(-1px); }
+.source-btn.active{ border-color: var(--sc); }
+.source-btn.active::after{ opacity:.13; }
+.source-btn svg{
+  width:18px; height:18px; flex:none; position:relative; z-index:1;
+  stroke: var(--sc); fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round;
+}
+.source-label{ position:relative; z-index:1; flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mini-status{
+  position:relative; z-index:1;
+  display:flex; align-items:center; gap:4px;
+  font-family: var(--mono); font-size:10px; font-weight:700;
+  color: var(--muted); flex:none;
+}
+.mini-status .status-dot{
+  width:7px; height:7px; border-radius:50%;
+  background: var(--muted); transition: background .3s, box-shadow .3s;
+}
+.mini-status.green .status-dot{ background: var(--good); box-shadow: 0 0 0 2px rgba(22,163,74,.2); }
+.mini-status.amber .status-dot{ background: var(--warn); box-shadow: 0 0 0 2px rgba(217,119,6,.2); }
+.mini-status.red   .status-dot{ background: var(--bad);  box-shadow: 0 0 0 2px rgba(220,38,38,.2); }
+.mini-status.green .status-text{ color: var(--good); }
+.mini-status.amber .status-text{ color: var(--warn); }
+.mini-status.red   .status-text{ color: var(--bad); }
+.btn-row{ display:flex; gap:8px; margin-top:14px; }
+.btn{
+  flex:1; display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:11px 14px; border-radius:10px; cursor:pointer;
+  font: inherit; font-size:13px; font-weight:700;
+  border:1px solid transparent; transition: .18s; white-space:nowrap;
+}
+.btn-primary{ background: var(--c); color:#fff; box-shadow: 0 8px 20px -12px var(--c); }
+.btn-primary:hover{ filter: brightness(1.07); transform: translateY(-1px); }
+.btn-primary.is-on{ background: var(--bad); box-shadow: 0 8px 20px -12px var(--bad); }
+.btn-ghost{ background: transparent; border-color: var(--line); color: var(--ink); flex:0 0 auto; }
+.btn-ghost:hover{ border-color: var(--c); color: var(--c); }
+.btn .dot{ width:8px; height:8px; border-radius:50%; background: rgba(255,255,255,.9); }
+.btn.is-on .dot{ animation: beep 1.4s ease-out infinite; }
+@keyframes beep{ 0%{ box-shadow: 0 0 0 0 rgba(255,255,255,.75); } 100%{ box-shadow: 0 0 0 8px rgba(255,255,255,0); } }
+.hint{
+  margin: 12px 0 0; padding:10px 12px; border-radius:9px;
+  background: var(--panel-2); border:1px solid var(--line);
+  font-size:11.5px; line-height:1.5; color: var(--muted);
+}
+/* stage */
+.stage-panel{ padding:14px 14px 12px; }
+.stage-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.stage-title{ display:flex; align-items:center; gap:9px; min-width:0; }
+.chip{
+  font-size:10px; font-weight:800; letter-spacing:.1em; text-transform:uppercase;
+  padding:4px 9px; border-radius:999px; white-space:nowrap;
+  background: var(--panel-2); color: var(--muted); border:1px solid var(--line);
+  transition: .3s;
+}
+.stage-panel.running .chip{ color:#fff; background: var(--good); border-color: var(--good); box-shadow: 0 0 0 3px rgba(22,163,74,.18); }
+.stage-source{ font-size:13px; font-weight:700; }
+.stage-meta{ font-family: var(--mono); font-size:11.5px; color: var(--muted); }
+.plant-stage{
+  position:relative; border-radius:12px; overflow:hidden;
+  border:1px solid var(--line);
+  background-image: linear-gradient(var(--bg-grid) 1px, transparent 1px), linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px);
+  background-size: 24px 24px; background-color: var(--panel-2);
+  display:flex; align-items:center; justify-content:center;
+  padding: 6px 0; min-height: 180px;
+}
+.plant-stage .scene{
+  width:100%; max-width:640px; height:auto; display:none;
+  transition: opacity .4s ease, filter .4s ease;
+  opacity:.55; filter: grayscale(.75);
+}
+.plant-stage .scene.active{ display:block; }
+.plant-stage.running .scene.active{ opacity:1; filter:none; }
+.ground{ stroke: var(--line); stroke-width:1.5; }
+.s-shape{ fill: var(--c); fill-opacity:.14; stroke: var(--c); stroke-opacity:.85; stroke-width:1.6; stroke-linejoin:round; }
+[data-theme="dark"] .s-shape{ fill-opacity:.22; }
+.steam circle, .smoke circle{ fill: var(--muted); fill-opacity:.4; animation: rise 3.2s ease-out infinite; animation-play-state: paused; opacity:0; }
+.steam circle:nth-child(2), .smoke circle:nth-child(2){ animation-delay: 1.05s; }
+.steam circle:nth-child(3), .smoke circle:nth-child(3){ animation-delay: 2.1s; }
+.smoke circle{ fill-opacity:.3; }
+.plant-stage.running .steam circle, .plant-stage.running .smoke circle{ animation-play-state: running; }
+.core{ fill: var(--c); filter: drop-shadow(0 0 7px var(--c)); animation: pulse 2.2s ease-in-out infinite; animation-play-state: paused; }
+.plant-stage.running .core{ animation-play-state: running; }
+.spin{ transform-box: fill-box; transform-origin: center; animation: spin 4s linear infinite; animation-play-state: paused; }
+.plant-stage.running .spin{ animation-play-state: running; }
+.fall{ stroke: var(--c); stroke-width:9; stroke-linecap:round; stroke-dasharray: 9 9; opacity:.8; animation: fallflow .6s linear infinite; animation-play-state: paused; }
+.plant-stage.running .fall{ animation-play-state: running; }
+.flame{ fill: var(--c); fill-opacity:.85; transform-box: fill-box; transform-origin: 50% 100%; animation: flick 1.1s ease-in-out infinite; animation-play-state: paused; }
+.plant-stage.running .flame{ animation-play-state: running; }
+.rays{ transform-box: fill-box; transform-origin: center; animation: spin 26s linear infinite; animation-play-state: paused; }
+.plant-stage.running .rays{ animation-play-state: running; }
+@keyframes spin{ to{ transform: rotate(360deg); } }
+@keyframes rise{ 0%{ transform: translateY(0) scale(.5); opacity:0; } 15%{ opacity:.6; } 100%{ transform: translateY(-58px) scale(1.6); opacity:0; } }
+@keyframes pulse{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+@keyframes fallflow{ to{ stroke-dashoffset: -36; } }
+@keyframes flick{ 0%,100%{ transform: scaleY(1) scaleX(1); opacity:.9; } 50%{ transform: scaleY(.86) scaleX(1.06); opacity:1; } }
+.flow{ position:relative; height:6px; border-radius:3px; overflow:hidden; background: var(--line); margin: 12px 2px; }
+.flow::after{
+  content:''; position:absolute; inset:0;
+  background-image: linear-gradient(90deg, var(--c) 0 10px, transparent 10px 20px);
+  background-size: 20px 100%; opacity:0; transition: opacity .3s;
+}
+.stage-panel.running .flow::after{ opacity:.95; animation: flowmove .8s linear infinite; }
+@keyframes flowmove{ from{ background-position:0 0; } to{ background-position:20px 0; } }
+/* pueblo */
+.village-panel{ border:1px solid var(--line); border-radius:12px; background: var(--panel-2); padding: 10px 8px 12px; }
+.village-head{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding: 0 6px 8px; font-size:11.5px; color: var(--muted); }
+.village-head strong{ color: var(--ink); font-family: var(--mono); }
+.village{ display:grid; grid-template-columns: repeat(auto-fill, 13px); gap: 7px 6px; justify-content:center; padding: 4px 4px 2px; transition: filter .4s; }
+.village.full{ filter: drop-shadow(0 0 10px rgba(245,179,1,.35)); }
+.house{ position:relative; width:13px; height:16px; }
+.house .roof{
+  position:absolute; top:0; left:50%; transform: translateX(-50%);
+  width:0; height:0;
+  border-left:7px solid transparent; border-right:7px solid transparent;
+  border-bottom:7px solid var(--house-off-roof);
+  transition: border-bottom-color .3s ease; transition-delay: var(--d, 0ms);
+}
+.house .body{
+  position:absolute; bottom:0; left:1px; right:1px; height:9px;
+  background: var(--house-off); border-radius:1.5px;
+  transition: background-color .3s ease, box-shadow .3s ease;
+  transition-delay: var(--d, 0ms);
+}
+.house.on .body{ background: var(--house-on); box-shadow: 0 0 7px var(--house-on); }
+.house.on .roof{ border-bottom-color: var(--house-on-roof); }
+@media (max-width: 640px){
+  .village{ grid-template-columns: repeat(auto-fill, 10px); gap:5px 4px; }
+  .house{ width:10px; height:13px; }
+  .house .roof{ border-left-width:5px; border-right-width:5px; border-bottom-width:5px; }
+  .house .body{ height:7px; }
+}
+/* gauges */
+.gauges{ display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-bottom:14px; }
+.gauge{ text-align:center; min-width:0; }
+.gauge svg{ width:100%; height:auto; display:block; overflow:visible; }
+.g-track{ fill:none; stroke: var(--line); stroke-width:10; stroke-linecap:round; }
+.g-fill{ fill:none; stroke: var(--c); stroke-width:10; stroke-linecap:round; stroke-dasharray: 188.5; stroke-dashoffset: 188.5; transition: stroke-dashoffset .85s cubic-bezier(.22,1,.36,1), stroke .35s; }
+.g-val{ font-family: var(--mono); font-size:20px; font-weight:700; fill: var(--ink); }
+.g-tick{ stroke: var(--line); stroke-width:1; }
+.g-label{ font-size:9.5px; letter-spacing:.09em; text-transform:uppercase; color: var(--muted); font-weight:700; margin-top:-2px; }
+/* kpis */
+.kpi-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(148px,1fr)); gap:9px; }
+.kpi{ background: var(--panel-2); border:1px solid var(--line); border-radius:10px; padding: 9px 11px; transition: border-color .3s; }
+.kpi .k-label{ font-size:9.5px; letter-spacing:.09em; text-transform:uppercase; color: var(--muted); font-weight:700; }
+.kpi .k-val{ font-family: var(--mono); font-size:17px; font-weight:700; margin-top:2px; letter-spacing:-.02em; }
+.kpi .k-sub{ font-size:10.5px; color: var(--muted); margin-top:1px; }
+.kpi .pos{ color: var(--good); }
+.kpi .neg{ color: var(--bad); }
+.meters{ margin-top:14px; display:grid; gap:11px; }
+.meter-head{ display:flex; justify-content:space-between; align-items:baseline; font-size:11.5px; color: var(--muted); margin-bottom:5px; }
+.meter-head strong{ font-family: var(--mono); color: var(--ink); font-size:12px; }
+.meter-track{ height:8px; border-radius:4px; background: var(--line); overflow:hidden; }
+.meter-fill{ height:100%; width:0; border-radius:4px; background: var(--c); transition: width .85s cubic-bezier(.22,1,.36,1), background .35s; }
+/* tabla */
+.wide-wrap{ max-width:1420px; margin:0 auto; padding: 18px 20px 0; }
+.table-scroll{ overflow-x:auto; }
+table{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px; }
+thead th{ text-align:left; font-size:9.5px; letter-spacing:.1em; text-transform:uppercase; color: var(--muted); font-weight:800; padding: 0 10px 9px; border-bottom:1px solid var(--line); white-space:nowrap; }
+tbody td{ padding: 9px 10px; border-bottom:1px solid var(--line); vertical-align:middle; }
+tbody tr:last-child td{ border-bottom:none; }
+tbody tr{ transition: background-color .2s; }
+tbody tr:hover{ background: var(--panel-2); }
+tbody tr.is-current{ background: var(--accent-soft); }
+tbody tr.is-current td:first-child{ box-shadow: inset 3px 0 0 var(--sc); }
+td.num{ font-family: var(--mono); font-weight:700; white-space:nowrap; }
+.src-cell{ display:flex; align-items:center; gap:8px; font-weight:600; white-space:nowrap; }
+.dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+.mini-bar{ width:88px; height:6px; border-radius:3px; background: var(--line); overflow:hidden; }
+.mini-bar i{ display:block; height:100%; border-radius:3px; }
+.foot-note{ margin: 12px 0 0; font-size:11px; color: var(--muted); line-height:1.55; }
+.foot{ max-width:1420px; margin:0 auto; padding: 22px 20px 34px; font-size:11px; color: var(--muted); text-align:center; }
+
+/* veredicto y análisis */
+.verdict{
+  padding: 12px 14px; border-radius: 10px; margin-bottom: 14px;
+  font-size: 12.5px; line-height: 1.5; display: flex; gap: 11px; align-items: flex-start;
+  border: 1px solid var(--line); background: var(--panel-2); transition: .3s;
+}
+.verdict-icon{ font-size: 16px; flex: none; line-height: 1.3; }
+.verdict.good{ border-color: rgba(22,163,74,.45); background: rgba(22,163,74,.09); }
+.verdict.warn{ border-color: rgba(217,119,6,.45); background: rgba(217,119,6,.09); }
+.verdict.bad { border-color: rgba(220,38,38,.45); background: rgba(220,38,38,.09); }
+.analysis-grid{ display:grid; grid-template-columns: 1fr 1.35fr; gap: 20px; }
+@media (max-width: 900px){ .analysis-grid{ grid-template-columns: 1fr; } }
+.analysis-grid h3{
+  margin: 0 0 12px; font-size: 10.5px; font-weight: 800;
+  letter-spacing:.12em; text-transform: uppercase; color: var(--muted);
+}
+.fp-list{ display:flex; flex-direction:column; gap: 9px; }
+.fp-row{ display:grid; grid-template-columns: 118px 1fr 78px; gap: 10px; align-items:center; font-size: 12px; }
+.fp-name{ display:flex; align-items:center; gap:6px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.fp-name .dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+.fp-bar-track{ height: 14px; border-radius: 4px; background: var(--line); overflow: hidden; position: relative; }
+.fp-row.is-current .fp-bar-track{ box-shadow: 0 0 0 2px var(--accent-soft); }
+.fp-bar-fill{ height:100%; border-radius:4px; transition: width .6s ease; }
+.fp-village-mark{
+  position: absolute; top: -2px; bottom: -2px; width: 2px;
+  background: var(--ink); opacity: .55; transform: translateX(-50%);
+  pointer-events: none;
+}
+.fp-value{ font-family: var(--mono); font-size: 11.5px; text-align: right; font-weight: 700; white-space: nowrap; }
+.fp-value small{ display:block; font-size:9.5px; color: var(--muted); font-weight: 400; font-family: var(--mono); }
+.fp-ref{ margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.fp-ref strong{ font-family: var(--mono); color: var(--ink); }
+.chart24{ width:100%; height:auto; display:block; }
+.chart-meta{ font-size: 11.5px; color: var(--muted); margin: 8px 0 6px; font-family: var(--mono); }
+.chart-meta strong{ color: var(--ink); }
+.chart-note{ font-size: 11.5px; color: var(--muted); line-height: 1.5; display: flex; align-items: baseline; gap: 7px; margin-top: 5px; }
+.chart-note strong{ color: var(--ink); font-family: var(--mono); }
+.bad-dot, .good-dot{ width:8px; height:8px; border-radius:50%; flex:none; display:inline-block; transform: translateY(-1px); }
+.bad-dot{ background: var(--bad); }
+.good-dot{ background: var(--good); }
+.typical-box{
+  margin-top: 14px; padding: 10px 12px; border-radius: 9px;
+  background: var(--panel-2); border: 1px dashed var(--line);
+  font-size: 11.5px; line-height: 1.55; color: var(--muted);
+}
+.typical-box strong{ color: var(--ink); font-family: var(--mono); }
+
+/* ranking */
+.criteria-chips{ display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+.chip-btn{
+  padding: 6px 13px; border-radius: 999px; cursor:pointer;
+  border: 1px solid var(--line); background: var(--panel-2);
+  font: inherit; font-size: 11.5px; font-weight: 700;
+  color: var(--muted); transition: .18s;
+}
+.chip-btn:hover{ border-color: var(--accent); color: var(--ink); }
+.chip-btn.active{ background: var(--accent); color: #fff; border-color: var(--accent); }
+.ranking-lead{ font-size: 12px; color: var(--muted); margin: 0 0 14px; line-height: 1.5; }
+.ranking-cards{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+@media (max-width: 760px){ .ranking-cards{ grid-template-columns: 1fr; } }
+.rank-card{
+  display: flex; gap: 10px; padding: 12px;
+  border-radius: 10px; border: 1px solid var(--line);
+  background: var(--panel-2); position: relative;
+  animation: fadeIn .4s ease both;
+}
+@keyframes fadeIn{ from{ opacity: 0; transform: translateY(4px); } to{ opacity: 1; transform: none; } }
+.rank-card.rank-1{ border-color: var(--accent); background: var(--accent-soft); }
+.rank-badge{
+  width: 26px; height: 26px; border-radius: 8px; flex: none;
+  display: grid; place-items: center;
+  font-family: var(--mono); font-weight: 800; font-size: 12px;
+  background: var(--line); color: var(--muted);
+}
+.rank-card.rank-1 .rank-badge{ background: var(--accent); color: #fff; }
+.rank-body{ min-width: 0; flex: 1; }
+.rank-name{ display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; margin-bottom: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rank-metric{ font-family: var(--mono); font-size: 13px; font-weight: 700; color: var(--accent); margin-bottom: 3px; }
+.rank-why{ font-size: 11px; color: var(--muted); line-height: 1.4; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <div class="logo"><svg viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H10L9 22l8.5-11.5H12L13 2z"/></svg></div>
+    <div class="brand-text">
+      <h1>EnergíaLab</h1>
+      <p>Simulador de producción y cobertura energética</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <span class="badge">v1.2 · educativo</span>
+    <button id="themeBtn" class="theme-toggle" aria-label="Cambiar tema">
+      <svg class="icon-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <aside class="col">
+    <section class="panel">
+      <h2><span class="num">1</span> Configura el pueblo</h2>
+      <div class="field">
+        <div class="field-head">
+          <label for="houses">Número de casas</label>
+          <output id="housesOut">1.000</output>
+        </div>
+        <input type="range" id="houses" min="0" max="1000" step="1" value="0">
+        <div class="threshold-bar" id="thresholdBar"></div>
+        <div class="range-scale"><span>100</span><span>1k</span><span>10k</span><span>100k</span><span>500k</span></div>
+      </div>
+      <div class="field">
+        <div class="field-head">
+          <label for="kwh">Consumo por casa</label>
+          <output id="kwhOut">4.000 kWh/año</output>
+        </div>
+        <input type="range" id="kwh" min="1500" max="10000" step="100" value="4000">
+        <div class="range-scale"><span>1.500</span><span>10.000</span></div>
+      </div>
+      <div class="mini-stats">
+        <div><span>Demanda anual</span><strong id="demandOut">4.000 MWh</strong></div>
+        <div><span>Potencia media</span><strong id="avgPowOut">0,46 MW</strong></div>
+        <div><span>Pico estimado</span><strong id="peakPowOut">1,19 MW</strong></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2><span class="num">2</span> Elige la fuente</h2>
+      <div class="source-grid" id="sourceGrid">
+        <button class="source-btn active" data-src="nuclear" style="--sc:#8b5cf6">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><ellipse cx="12" cy="12" rx="10" ry="4.2"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4.2" transform="rotate(120 12 12)"/></svg>
+          <span class="source-label">Nuclear</span>
+          <span class="mini-status"><span class="status-dot"></span><span class="status-text">—</span></span>
+        </button>
+        <button class="source-btn" data-src="hydro" style="--sc:#2b8fe6">
+          <svg viewBox="0 0 24 24"><path d="M12 3c4 5.2 6.2 7.9 6.2 10.4a6.2 6.2 0 0 1-12.4 0C5.8 10.9 8 8.2 12 3z"/></svg>
+          <span class="source-label">Hidro</span>
+          <span class="mini-status"><span class="status-dot"></span><span class="status-text">—</span></span>
+        </button>
+        <button class="source-btn" data-src="coal" style="--sc:#64748b">
+          <svg viewBox="0 0 24 24"><path d="M3 17.5 8.2 9l4.1 3.2L17 5l4 12.5z"/><path d="M3 20.5h18"/></svg>
+          <span class="source-label">Carbón</span>
+          <span class="mini-status"><span class="status-dot"></span><span class="status-text">—</span></span>
+        </button>
+        <button class="source-btn" data-src="gas" style="--sc:#f59e0b">
+          <svg viewBox="0 0 24 24"><path d="M12 3c1.2 3.4 5.4 5.6 5.4 9.6a5.4 5.4 0 0 1-10.8 0C6.6 8.6 10.8 6.4 12 3z"/></svg>
+          <span class="source-label">Gas</span>
+          <span class="mini-status"><span class="status-dot"></span><span class="status-text">—</span></span>
+        </button>
+        <button class="source-btn" data-src="wind" style="--sc:#14b8a6">
+          <svg viewBox="0 0 24 24"><path d="M12 11V2.5"/><path d="M12 11l7.3 4.2"/><path d="M12 11 4.7 15.2"/><circle cx="12" cy="11" r="1.6"/><path d="M12 12.6V21"/></svg>
+          <span class="source-label">Eólica</span>
+          <span class="mini-status"><span class="status-dot"></span><span class="status-text">—</span></span>
+        </button>
+        <button class="source-btn" data-src="solar" style="--sc:#eab308">
+          <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M5.1 5.1l1.7 1.7M17.2 17.2l1.7 1.7M18.9 5.1l-1.7 1.7M6.8 17.2l-1.7 1.7"/></svg>
+          <span class="source-label">Solar</span>
+          <span class="mini-status"><span class="status-dot"></span><span class="status-text">—</span></span>
+        </button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2><span class="num">3</span> Ajusta la planta</h2>
+      <div class="field">
+        <div class="field-head"><label for="cap">Potencia instalada</label><output id="capOut">1.000 MW</output></div>
+        <input type="range" id="cap" min="50" max="2500" step="10" value="1000">
+      </div>
+      <div class="field">
+        <div class="field-head"><label for="cf">Factor de capacidad</label><output id="cfOut">90 %</output></div>
+        <input type="range" id="cf" min="40" max="95" step="1" value="90">
+      </div>
+      <div class="field">
+        <div class="field-head"><label for="eff">Eficiencia de conversión</label><output id="effOut">35 %</output></div>
+        <input type="range" id="eff" min="25" max="42" step="1" value="35">
+      </div>
+      <p class="hint" id="sourceHint"></p>
+      <div class="btn-row">
+        <button id="powerBtn" class="btn btn-primary"><span class="dot"></span><span id="powerLabel">Encender planta</span></button>
+        <button id="fitBtn" class="btn btn-ghost">Ajustar al pueblo</button>
+      </div>
+    </section>
+  </aside>
+
+  <section class="col">
+    <div class="panel stage-panel" id="stagePanel">
+      <div class="stage-head">
+        <div class="stage-title">
+          <span class="chip" id="statusChip">En reposo</span>
+          <span class="stage-source" id="stageSource">Nuclear</span>
+        </div>
+        <div class="stage-meta" id="stageMeta">1.000 MW · FC 90%</div>
+      </div>
+      <div class="plant-stage" id="plantStage">
+        <svg class="scene active" data-scene="nuclear" viewBox="0 0 420 190">
+          <line class="ground" x1="24" y1="166" x2="396" y2="166"/>
+          <path class="s-shape" d="M118 166 L136 74 Q160 66 184 74 L202 166 Z"/>
+          <ellipse class="s-shape" cx="160" cy="73" rx="24" ry="6"/>
+          <g class="steam" transform="translate(160,64)"><circle r="9"/><circle r="11"/><circle r="13"/></g>
+          <path class="s-shape" d="M248 166 L248 128 A38 38 0 0 1 324 128 L324 166 Z"/>
+          <rect class="s-shape" x="234" y="152" width="104" height="14" rx="3"/>
+          <circle class="core" cx="286" cy="140" r="7"/>
+          <rect class="s-shape" x="338" y="138" width="42" height="28" rx="2"/>
+          <rect class="s-shape" x="352" y="110" width="14" height="28" rx="2"/>
+        </svg>
+        <svg class="scene" data-scene="hydro" viewBox="0 0 420 190">
+          <line class="ground" x1="24" y1="166" x2="396" y2="166"/>
+          <path class="s-shape" d="M28 92 Q80 82 152 90 L152 166 L28 166 Z"/>
+          <path class="s-shape" d="M152 78 L176 78 L168 166 L152 166 Z"/>
+          <line class="fall" x1="172" y1="84" x2="172" y2="164"/>
+          <circle class="s-shape" cx="214" cy="138" r="21"/>
+          <g transform="translate(214,138)"><g class="spin"><path d="M0 -20 L0 20 M-20 0 L20 0 M-14 -14 L14 14 M14 -14 L-14 14" stroke="var(--c)" stroke-width="2.5" stroke-linecap="round" fill="none"/></g></g>
+          <path class="s-shape" d="M186 158 Q280 148 396 160 L396 176 Q280 166 186 172 Z"/>
+        </svg>
+        <svg class="scene" data-scene="coal" viewBox="0 0 420 190">
+          <line class="ground" x1="24" y1="166" x2="396" y2="166"/>
+          <rect class="s-shape" x="96" y="112" width="132" height="54" rx="3"/>
+          <rect class="s-shape" x="126" y="62" width="20" height="50" rx="2"/>
+          <rect class="s-shape" x="166" y="80" width="16" height="32" rx="2"/>
+          <g class="smoke" transform="translate(136,56)"><circle r="9"/><circle r="11"/><circle r="13"/></g>
+          <path class="s-shape" d="M252 166 L288 122 L324 166 Z"/>
+          <path class="s-shape" d="M312 166 L342 136 L372 166 Z"/>
+        </svg>
+        <svg class="scene" data-scene="gas" viewBox="0 0 420 190">
+          <line class="ground" x1="24" y1="166" x2="396" y2="166"/>
+          <rect class="s-shape" x="110" y="106" width="150" height="60" rx="3"/>
+          <rect class="s-shape" x="140" y="70" width="18" height="36" rx="2"/>
+          <rect class="s-shape" x="176" y="82" width="14" height="24" rx="2"/>
+          <circle class="s-shape" cx="200" cy="136" r="16"/>
+          <path class="flame" d="M300 166 C286 154 290 140 300 130 C298 140 310 142 309 152 C317 148 315 160 309 166 Z"/>
+        </svg>
+        <svg class="scene" data-scene="wind" viewBox="0 0 420 190">
+          <line class="ground" x1="24" y1="166" x2="396" y2="166"/>
+          <path class="s-shape" d="M118 166 L124 76 L132 76 L138 166 Z"/>
+          <g transform="translate(128,74)"><g class="spin"><path d="M0 0 L0 -34 M0 0 L29.4 17 M0 0 L-29.4 17" stroke="var(--c)" stroke-width="3" stroke-linecap="round" fill="none"/></g><circle class="core" r="4"/></g>
+          <path class="s-shape" d="M228 166 L234 92 L241 92 L247 166 Z"/>
+          <g transform="translate(237.5,90)"><g class="spin"><path d="M0 0 L0 -28 M0 0 L24.2 14 M0 0 L-24.2 14" stroke="var(--c)" stroke-width="2.6" stroke-linecap="round" fill="none"/></g><circle class="core" r="3.4"/></g>
+          <path class="s-shape" d="M318 166 L323 104 L329 104 L334 166 Z"/>
+          <g transform="translate(326,102)"><g class="spin"><path d="M0 0 L0 -22 M0 0 L19 11 M0 0 L-19 11" stroke="var(--c)" stroke-width="2.2" stroke-linecap="round" fill="none"/></g><circle class="core" r="2.8"/></g>
+        </svg>
+        <svg class="scene" data-scene="solar" viewBox="0 0 420 190">
+          <line class="ground" x1="24" y1="166" x2="396" y2="166"/>
+          <g transform="translate(340,48)">
+            <circle r="18" fill="var(--c)" fill-opacity=".22" stroke="var(--c)" stroke-width="1.5"/>
+            <g class="rays" stroke="var(--c)" stroke-width="2" stroke-linecap="round">
+              <path d="M0 -30 L0 -24 M0 24 L0 30 M-30 0 L-24 0 M24 0 L30 0 M-21 -21 L-17 -17 M17 17 L21 21 M21 -21 L17 -17 M-17 17 L-21 21"/>
+            </g>
+          </g>
+          <g class="s-shape">
+            <path d="M60 150 L96 118 L160 118 L124 150 Z"/>
+            <path d="M150 150 L186 118 L250 118 L214 150 Z"/>
+            <path d="M76 178 L112 146 L176 146 L140 178 Z"/>
+            <path d="M166 178 L202 146 L266 146 L230 178 Z"/>
+          </g>
+        </svg>
+      </div>
+      <div class="flow"></div>
+      <div class="village-panel">
+        <div class="village-head">
+          <span>Pueblo · <strong id="villageCount">1.000</strong> casas</span>
+          <span id="villageLegend"></span>
+        </div>
+        <div class="village" id="village"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Indicadores de desempeño</h2>
+      <div class="gauges">
+        <div class="gauge">
+          <svg viewBox="0 0 160 100" id="gCoverageSvg">
+            <path class="g-track" d="M20 90 A60 60 0 0 1 140 90"/>
+            <path class="g-fill" id="gCoverage" d="M20 90 A60 60 0 0 1 140 90"/>
+            <text class="g-val" id="gCoverageVal" x="80" y="80" text-anchor="middle">0%</text>
+          </svg>
+          <div class="g-label">Cobertura anual</div>
+        </div>
+        <div class="gauge">
+          <svg viewBox="0 0 160 100" id="gCfSvg">
+            <path class="g-track" d="M20 90 A60 60 0 0 1 140 90"/>
+            <path class="g-fill" id="gCf" d="M20 90 A60 60 0 0 1 140 90"/>
+            <text class="g-val" id="gCfVal" x="80" y="80" text-anchor="middle">0%</text>
+          </svg>
+          <div class="g-label">Factor capacidad</div>
+        </div>
+        <div class="gauge">
+          <svg viewBox="0 0 160 100" id="gEffSvg">
+            <path class="g-track" d="M20 90 A60 60 0 0 1 140 90"/>
+            <path class="g-fill" id="gEff" d="M20 90 A60 60 0 0 1 140 90"/>
+            <text class="g-val" id="gEffVal" x="80" y="80" text-anchor="middle">0%</text>
+          </svg>
+          <div class="g-label">Eficiencia</div>
+        </div>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi"><div class="k-label">Generación anual</div><div class="k-val" id="kGen">—</div><div class="k-sub">MWh / año</div></div>
+        <div class="kpi"><div class="k-label">Hogares abastecidos</div><div class="k-val" id="kHomes">—</div><div class="k-sub">con esta planta</div></div>
+        <div class="kpi"><div class="k-label">Potencia para 100%</div><div class="k-val" id="kNeeded">—</div><div class="k-sub">MW necesarios</div></div>
+        <div class="kpi"><div class="k-label">Emisiones CO₂</div><div class="k-val" id="kCo2">—</div><div class="k-sub">toneladas / año</div></div>
+        <div class="kpi"><div class="k-label">Superficie estimada</div><div class="k-val" id="kLand">—</div><div class="k-sub">hectáreas</div></div>
+        <div class="kpi"><div class="k-label">Balance anual</div><div class="k-val" id="kBalance">—</div><div class="k-sub">excedente / déficit</div></div>
+      </div>
+      <div class="meters">
+        <div class="meter"><div class="meter-head"><span>Intensidad de emisiones</span><strong id="mCo2Val">—</strong></div><div class="meter-track"><div class="meter-fill" id="mCo2"></div></div></div>
+        <div class="meter"><div class="meter-head"><span>Estabilidad del suministro</span><strong id="mStabVal">—</strong></div><div class="meter-track"><div class="meter-fill" id="mStab"></div></div></div>
+        <div class="meter"><div class="meter-head"><span>Uso de suelo</span><strong id="mLandVal">—</strong></div><div class="meter-track"><div class="meter-fill" id="mLand"></div></div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- RANKING -->
+<section class="wide-wrap">
+  <div class="panel">
+    <h2>Recomendación para este pueblo</h2>
+    <div class="criteria-chips" id="criteriaChips">
+      <button class="chip-btn active" data-crit="balance">Equilibrio</button>
+      <button class="chip-btn" data-crit="co2">Emisiones</button>
+      <button class="chip-btn" data-crit="land">Suelo</button>
+      <button class="chip-btn" data-crit="reliability">Fiabilidad</button>
+      <button class="chip-btn" data-crit="scale">Escala</button>
+    </div>
+    <p class="ranking-lead" id="rankingLead"></p>
+    <div class="ranking-cards" id="rankingCards"></div>
+  </div>
+</section>
+
+<!-- ANÁLISIS -->
+<section class="wide-wrap">
+  <div class="panel">
+    <h2>Análisis de viabilidad</h2>
+    <div class="verdict" id="verdict">
+      <span class="verdict-icon">—</span>
+      <span class="verdict-text">Configura el pueblo y la planta para ver el análisis.</span>
+    </div>
+    <div class="analysis-grid">
+      <div>
+        <h3>Huella territorial · misma demanda</h3>
+        <div class="fp-list" id="footprint"></div>
+        <div class="fp-ref" id="footprintRef"></div>
+      </div>
+      <div>
+        <h3>Perfil horario (24 h)</h3>
+        <div id="chart24"></div>
+        <div class="chart-meta" id="chartMeta"></div>
+        <div id="chartNotes"></div>
+      </div>
+    </div>
+    <div class="typical-box" id="typicalBox"></div>
+  </div>
+</section>
+
+<!-- TABLA -->
+<section class="wide-wrap">
+  <div class="panel">
+    <h2>Comparativa para este pueblo</h2>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Fuente</th>
+            <th>Potencia para cubrir el pueblo</th>
+            <th>CO₂ al año</th>
+            <th>Superficie</th>
+            <th>Estabilidad</th>
+          </tr>
+        </thead>
+        <tbody id="compareBody"></tbody>
+      </table>
+    </div>
+    <p class="foot-note">
+      <strong>Cómo leerla:</strong> todas las fuentes pueden cubrir la demanda anual si se escalan.
+      La diferencia está en <em>cuánta potencia</em> necesitan, <em>cuánto terreno</em> ocupan y
+      <em>si pueden seguir la demanda hora a hora</em>. Valores orientativos con fines educativos.
+    </p>
+  </div>
+</section>
+
+<footer class="foot">EnergíaLab · Simulación educativa simplificada · No sustituye un estudio energético real.</footer>
+
+<script>
+/* ============================================================
+   FUENTES DE ENERGÍA
+   ============================================================ */
+const SOURCES = {
+  nuclear: {
+    name:'Nuclear', color:'#8b5cf6',
+    cap:{ min:50, max:2500, step:10, def:1000 },
+    cf:{ min:40, max:95, def:90 },
+    eff:{ min:25, max:42, def:35 },
+    co2:12, haPerMW:0.30, stability:95,
+    typical:{ min:500, max:1600 },
+    hint:'Funciona 24/7 como energía de base. Genera residuos radiactivos de larga vida y tarda años en construirse.'
+  },
+  hydro: {
+    name:'Hidroeléctrica', color:'#2b8fe6',
+    cap:{ min:1, max:3000, step:1, def:50 },
+    cf:{ min:20, max:70, def:50 },
+    eff:{ min:70, max:92, def:88 },
+    co2:24, haPerMW:5.0, stability:78,
+    typical:{ min:10, max:300 },
+    hint:'Muy flexible: arranca en segundos. Depende de la lluvia y de disponer de un río o embalse.'
+  },
+  coal: {
+    name:'Termoeléctrica de carbón', color:'#64748b',
+    cap:{ min:10, max:2500, step:10, def:300 },
+    cf:{ min:30, max:80, def:60 },
+    eff:{ min:28, max:42, def:37 },
+    co2:820, haPerMW:0.20, stability:85,
+    typical:{ min:100, max:1000 },
+    hint:'Produce energía constante, pero es la fuente con más emisiones de CO₂ y contaminantes por kWh.'
+  },
+  gas: {
+    name:'Termoeléctrica de gas', color:'#f59e0b',
+    cap:{ min:5, max:2500, step:5, def:200 },
+    cf:{ min:20, max:80, def:55 },
+    eff:{ min:35, max:62, def:55 },
+    co2:490, haPerMW:0.10, stability:90,
+    typical:{ min:50, max:500 },
+    hint:'Ciclo combinado: arranca rápido y emite menos que el carbón. Sigue dependiendo de un combustible fósil.'
+  },
+  wind: {
+    name:'Parque eólico', color:'#14b8a6',
+    cap:{ min:1, max:5000, step:1, def:50 },
+    cf:{ min:15, max:50, def:35 },
+    eff:{ min:25, max:55, def:42 },
+    co2:11, haPerMW:15.0, stability:40,
+    typical:{ min:10, max:200 },
+    hint:'No emite al operar, pero solo produce cuando hay viento. Necesita respaldo o almacenamiento.'
+  },
+  solar: {
+    name:'Parque solar', color:'#eab308',
+    cap:{ min:1, max:5000, step:1, def:50 },
+    cf:{ min:10, max:30, def:18 },
+    eff:{ min:10, max:30, def:20 },
+    co2:48, haPerMW:2.0, stability:35,
+    typical:{ min:5, max:100 },
+    hint:'Produce solo de día y baja mucho con nubes o en invierno. Necesita respaldo nocturno.'
+  }
+};
+
+const PROFILES = {
+  nuclear: new Array(24).fill(0.90),
+  coal:    [0.60,0.59,0.58,0.58,0.58,0.60,0.62,0.63,0.62,0.61,0.60,0.60,0.60,0.60,0.60,0.60,0.61,0.62,0.63,0.64,0.63,0.62,0.61,0.60],
+  hydro:   [0.40,0.38,0.36,0.35,0.36,0.38,0.42,0.48,0.52,0.54,0.55,0.56,0.56,0.56,0.56,0.55,0.54,0.55,0.58,0.60,0.58,0.54,0.48,0.44],
+  gas:     [0.48,0.46,0.45,0.45,0.46,0.48,0.52,0.56,0.58,0.58,0.57,0.56,0.55,0.54,0.53,0.53,0.54,0.56,0.60,0.62,0.60,0.56,0.52,0.50],
+  wind:    [0.35,0.40,0.48,0.55,0.50,0.42,0.32,0.28,0.25,0.22,0.20,0.22,0.25,0.28,0.32,0.38,0.45,0.52,0.55,0.50,0.42,0.35,0.30,0.32],
+  solar:   [0,0,0,0,0,0.02,0.08,0.20,0.38,0.55,0.65,0.68,0.66,0.60,0.50,0.35,0.18,0.06,0.01,0,0,0,0,0]
+};
+const DEMAND_PROFILE = [
+  0.55,0.50,0.48,0.48,0.52,0.60,0.72,0.82,0.86,0.84,0.80,0.78,
+  0.76,0.74,0.72,0.74,0.78,0.86,0.94,1.00,0.98,0.88,0.72,0.62
+];
+
+const HOUSES_MIN = 100;
+const HOUSES_MAX = 500000;
+const VILLAGE_HA_PER_HOUSE = 0.02;
+const VISUAL_MAX = 400;
+
+/* ============================================================
+   ESTADO
+   ============================================================ */
+const state = {
+  houses: 1000,
+  kwhPerHouse: 4000,
+  source: 'nuclear',
+  running: false,
+  plants: {}
+};
+Object.keys(SOURCES).forEach(k => {
+  const s = SOURCES[k];
+  state.plants[k] = { cap:s.cap.def, cf:s.cf.def, eff:s.eff.def };
+});
+let currentCriterion = 'balance';
+
+/* ============================================================
+   HELPERS
+   ============================================================ */
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+const fmt = (n, d = 0) => Number(n).toLocaleString('es-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+function fmtMW(n){ if (n < 10) return fmt(n, 2); if (n < 100) return fmt(n, 1); return fmt(n, 0); }
+function mean(arr){ return arr.reduce((a,b)=>a+b,0) / arr.length; }
+function villageArea(){ return state.houses * VILLAGE_HA_PER_HOUSE; }
+function fmtCoverageShort(c){
+  if (c < 0.01) return '<1%';
+  if (c < 1) return fmt(c * 100, 0) + '%';
+  if (c < 10) return fmt(c, 2) + '×';
+  if (c < 100) return fmt(c, 1) + '×';
+  if (c < 10000) return fmt(c, 0) + '×';
+  return fmt(c / 1000, 0) + 'k×';
+}
+
+/* log-scale houses */
+function housesToSlider(h){ return 1000 * Math.log(h / HOUSES_MIN) / Math.log(HOUSES_MAX / HOUSES_MIN); }
+function sliderToHouses(p){ return Math.round(HOUSES_MIN * Math.pow(HOUSES_MAX / HOUSES_MIN, p / 1000)); }
+function snapHouses(h){
+  if (h < 1000) return Math.round(h / 50) * 50;
+  if (h < 10000) return Math.round(h / 100) * 100;
+  if (h < 100000) return Math.round(h / 500) * 500;
+  return Math.round(h / 1000) * 1000;
+}
+
+/* ============================================================
+   DOM
+   ============================================================ */
+const el = {
+  houses: $('#houses'), housesOut: $('#housesOut'),
+  thresholdBar: $('#thresholdBar'),
+  kwh: $('#kwh'), kwhOut: $('#kwhOut'),
+  demandOut: $('#demandOut'), avgPowOut: $('#avgPowOut'), peakPowOut: $('#peakPowOut'),
+  sourceGrid: $('#sourceGrid'),
+  cap: $('#cap'), capOut: $('#capOut'),
+  cf: $('#cf'), cfOut: $('#cfOut'),
+  eff: $('#eff'), effOut: $('#effOut'),
+  sourceHint: $('#sourceHint'),
+  powerBtn: $('#powerBtn'), powerLabel: $('#powerLabel'), fitBtn: $('#fitBtn'),
+  stagePanel: $('#stagePanel'), plantStage: $('#plantStage'),
+  statusChip: $('#statusChip'), stageSource: $('#stageSource'), stageMeta: $('#stageMeta'),
+  village: $('#village'), villageCount: $('#villageCount'), villageLegend: $('#villageLegend'),
+  kGen: $('#kGen'), kHomes: $('#kHomes'), kNeeded: $('#kNeeded'),
+  kCo2: $('#kCo2'), kLand: $('#kLand'), kBalance: $('#kBalance'),
+  mCo2: $('#mCo2'), mCo2Val: $('#mCo2Val'),
+  mStab: $('#mStab'), mStabVal: $('#mStabVal'),
+  mLand: $('#mLand'), mLandVal: $('#mLandVal'),
+  compareBody: $('#compareBody'),
+  verdict: $('#verdict'),
+  footprint: $('#footprint'), footprintRef: $('#footprintRef'),
+  chart24: $('#chart24'), chartMeta: $('#chartMeta'), chartNotes: $('#chartNotes'),
+  typicalBox: $('#typicalBox'),
+  criteriaChips: $('#criteriaChips'), rankingLead: $('#rankingLead'), rankingCards: $('#rankingCards')
+};
+
+let housesEls = [];
+const ARC_LEN = 188.5;
+const tweens = new WeakMap();
+
+/* ============================================================
+   TWEEN
+   ============================================================ */
+function tweenNumber(node, target, format = v => fmt(v, 0)){
+  const startVal = parseFloat(node.dataset.value) || 0;
+  if (Math.abs(target - startVal) < 0.5){
+    node.dataset.value = target;
+    node.textContent = format(target);
+    return;
+  }
+  node.dataset.value = target;
+  const existing = tweens.get(node);
+  if (existing) cancelAnimationFrame(existing);
+  const t0 = performance.now();
+  const dur = 450;
+  function frame(now){
+    const t = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - t, 3);
+    const v = startVal + (target - startVal) * e;
+    node.textContent = format(v);
+    if (t < 1) tweens.set(node, requestAnimationFrame(frame));
+    else tweens.delete(node);
+  }
+  tweens.set(node, requestAnimationFrame(frame));
+}
+
+/* ============================================================
+   GAUGES
+   ============================================================ */
+function buildTicks(svg){
+  const NS = 'http://www.w3.org/2000/svg';
+  for (let i = 0; i <= 10; i++){
+    const a = Math.PI - (Math.PI * i / 10);
+    const l = document.createElementNS(NS, 'line');
+    l.setAttribute('x1', (80 + Math.cos(a) * 66).toFixed(2));
+    l.setAttribute('y1', (90 - Math.sin(a) * 66).toFixed(2));
+    l.setAttribute('x2', (80 + Math.cos(a) * 72).toFixed(2));
+    l.setAttribute('y2', (90 - Math.sin(a) * 72).toFixed(2));
+    l.setAttribute('class', 'g-tick');
+    svg.insertBefore(l, svg.firstChild);
+  }
+}
+function setGauge(id, frac, text){
+  const path = document.getElementById(id);
+  const val = document.getElementById(id + 'Val');
+  const f = Math.max(0, Math.min(1, frac));
+  path.style.strokeDashoffset = (ARC_LEN * (1 - f)).toFixed(2);
+  val.textContent = text;
+}
+
+/* ============================================================
+   PUEBLO
+   ============================================================ */
+function buildVillage(){
+  const count = Math.min(state.houses, VISUAL_MAX);
+  el.village.innerHTML = '';
+  housesEls = [];
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i < count; i++){
+    const h = document.createElement('div');
+    h.className = 'house';
+    h.innerHTML = '<span class="roof"></span><span class="body"></span>';
+    frag.appendChild(h);
+    housesEls.push(h);
+  }
+  el.village.appendChild(frag);
+  const per = state.houses / count;
+  el.villageLegend.textContent = per > 1 ? `cada casa = ${fmt(per, 0)} hogares` : 'una casa = un hogar';
+}
+function paintVillage(){
+  const p = state.plants[state.source];
+  const demand = state.houses * state.kwhPerHouse / 1000;
+  const gen = p.cap * 8760 * (p.cf / 100);
+  const coverage = gen / demand;
+  const frac = state.running ? Math.min(1, coverage) : 0;
+  const lit = Math.round(frac * housesEls.length);
+  const step = Math.min(38, 2200 / Math.max(1, lit));
+  housesEls.forEach((h, i) => {
+    if (i < lit){
+      h.style.setProperty('--d', (i * step) + 'ms');
+      h.classList.add('on');
+    } else {
+      h.style.setProperty('--d', '0ms');
+      h.classList.remove('on');
+    }
+  });
+  el.village.classList.toggle('full', state.running && coverage >= 1);
+}
+
+/* ============================================================
+   MARCAS DE UMBRAL BAJO EL SLIDER
+   ============================================================ */
+function renderThresholds(){
+  el.thresholdBar.innerHTML = '';
+  const kwh = state.kwhPerHouse;
+  Object.keys(SOURCES).forEach(key => {
+    const s = SOURCES[key];
+    const p = state.plants[key];
+    const gen = p.cap * 8760 * (p.cf / 100);
+    const maxHouses = gen * 1000 / kwh;
+
+    let pos, label;
+    if (maxHouses >= HOUSES_MAX){
+      pos = 100;
+      label = `${s.name}: >${fmt(HOUSES_MAX, 0)} casas`;
+    } else if (maxHouses <= HOUSES_MIN){
+      pos = 0;
+      label = `${s.name}: <${fmt(HOUSES_MIN, 0)} casas`;
+    } else {
+      pos = 100 * Math.log(maxHouses / HOUSES_MIN) / Math.log(HOUSES_MAX / HOUSES_MIN);
+      label = `${s.name}: ${fmt(Math.round(maxHouses), 0)} casas`;
+    }
+    pos = Math.max(2, Math.min(98, pos));
+
+    const tick = document.createElement('div');
+    tick.className = 'threshold-tick' + (key === state.source ? ' current' : '');
+    tick.style.left = pos + '%';
+    tick.style.background = s.color;
+    tick.style.color = s.color;
+    tick.title = label;
+    el.thresholdBar.appendChild(tick);
+  });
+}
+
+/* ============================================================
+   ESTADO EN VIVO EN LAS TARJETAS DE FUENTE
+   ============================================================ */
+function renderSourceStatuses(demand){
+  $$('.source-btn', el.sourceGrid).forEach(btn => {
+    const key = btn.dataset.src;
+    const p = state.plants[key];
+    const gen = p.cap * 8760 * (p.cf / 100);
+    const cov = gen / demand;
+    const status = cov >= 1 ? 'green' : cov >= 0.5 ? 'amber' : 'red';
+    const ms = btn.querySelector('.mini-status');
+    ms.className = 'mini-status ' + status;
+    ms.querySelector('.status-text').textContent = fmtCoverageShort(cov);
+    btn.title = `${SOURCES[key].name}: cubre ${fmt(cov * 100, 1)}% de la demanda anual`;
+  });
+}
+
+/* ============================================================
+   RANKING
+   ============================================================ */
+function computeRanking(demand){
+  const items = Object.keys(SOURCES).map(key => {
+    const s = SOURCES[key];
+    const p = state.plants[key];
+    const neededCap = demand / (8760 * (p.cf / 100));
+    const land = neededCap * s.haPerMW;
+    const typicalMid = (s.typical.min + s.typical.max) / 2;
+    const typicalGen = typicalMid * 8760 * (p.cf / 100);
+    const typicalCoverage = typicalGen / demand;
+    return { key, s, p, neededCap, land, co2: s.co2, stability: s.stability, typicalCoverage };
+  });
+
+  const minCo2 = Math.min(...items.map(i => i.co2));
+  const maxCo2 = Math.max(...items.map(i => i.co2));
+  const minLand = Math.min(...items.map(i => i.land));
+  const maxLand = Math.max(...items.map(i => i.land));
+
+  items.forEach(it => {
+    it.co2Score = maxCo2 === minCo2 ? 1 : Math.max(0, 1 - Math.log10(it.co2 / minCo2) / Math.log10(maxCo2 / minCo2));
+    it.landScore = maxLand === minLand ? 1 : Math.max(0, 1 - Math.log10(it.land / minLand) / Math.log10(maxLand / minLand));
+    it.stabScore = it.stability / 100;
+    it.scaleScore = Math.exp(-Math.abs(Math.log(it.typicalCoverage)));
+    it.eqScore = (it.co2Score + it.landScore + it.stabScore + it.scaleScore) / 4;
+  });
+
+  const sortKey = { co2:'co2Score', land:'landScore', reliability:'stabScore', scale:'scaleScore', balance:'eqScore' }[currentCriterion];
+  return items.sort((a, b) => b[sortKey] - a[sortKey]);
+}
+
+function renderRanking(demand){
+  const sorted = computeRanking(demand);
+  const top3 = sorted.slice(0, 3);
+
+  const leads = {
+    balance: 'Mejor combinación de emisiones, suelo, fiabilidad y escala. Ninguna fuente gana en todo: el equilibrio es una ponderación explícita.',
+    co2: 'Las fuentes que menos CO₂ emiten por kWh generado. Todas necesitan una planta auto-dimensionada para cubrir el pueblo.',
+    land: 'Las fuentes que menos terreno necesitan para abastecer este pueblo. La referencia es el propio pueblo como superficie.',
+    reliability: 'Las fuentes que mejor siguen la demanda hora a hora. La solar y la eólica variables puntúan bajo.',
+    scale: 'Las fuentes cuyo tamaño típico de planta se ajusta mejor a este pueblo. Un 1× perfecto significaría una planta típica = demanda.'
+  };
+  el.rankingLead.textContent = leads[currentCriterion];
+
+  el.rankingCards.innerHTML = top3.map((it, i) => {
+    let metric, why;
+    if (currentCriterion === 'co2'){
+      metric = `${it.co2} g CO₂/kWh`;
+      why = i === 0 ? 'La más limpia por kWh generado.' :
+        `${fmt(it.co2 / top3[0].co2, 1)}× las emisiones de ${top3[0].s.name.toLowerCase()}.`;
+    } else if (currentCriterion === 'land'){
+      metric = it.land < 1000 ? fmt(it.land, 0) + ' ha' : fmt(it.land / 100, 1) + ' km²';
+      why = i === 0 ? 'La que menos suelo necesita.' :
+        `${fmt(it.land / top3[0].land, 1)}× el suelo de ${top3[0].s.name.toLowerCase()}.`;
+    } else if (currentCriterion === 'reliability'){
+      metric = `${it.stability} / 100`;
+      why = i === 0 ? 'La más estable para seguir la demanda.' : `Estabilidad ${it.stability}/100.`;
+    } else if (currentCriterion === 'scale'){
+      metric = `${fmt(it.typicalCoverage, 2)}× típica`;
+      why = i === 0 ? 'Una planta típica se ajusta mejor al pueblo.' :
+        `Planta típica = ${fmt(it.typicalCoverage, 1)}× la demanda.`;
+    } else {
+      metric = `Puntuación ${(it.eqScore * 100).toFixed(0)} / 100`;
+      why = i === 0 ? 'Mejor combinación global.' :
+        `CO₂ ${(it.co2Score*100).toFixed(0)} · Suelo ${(it.landScore*100).toFixed(0)} · Fiabilidad ${(it.stabScore*100).toFixed(0)} · Escala ${(it.scaleScore*100).toFixed(0)}`;
+    }
+    return `<div class="rank-card rank-${i+1}" style="animation-delay:${i*60}ms">
+      <div class="rank-badge">${i+1}</div>
+      <div class="rank-body">
+        <div class="rank-name"><span class="dot" style="background:${it.s.color}"></span>${it.s.name}</div>
+        <div class="rank-metric">${metric}</div>
+        <div class="rank-why">${why}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ============================================================
+   HUELLA TERRITORIAL
+   ============================================================ */
+function renderFootprint(demand){
+  const vArea = villageArea();
+  const items = Object.keys(SOURCES).map(key => {
+    const s = SOURCES[key];
+    const p = state.plants[key];
+    const needed = demand / (8760 * (p.cf / 100));
+    const land = needed * s.haPerMW;
+    return { key, land, name: s.name, color: s.color };
+  }).sort((a,b) => a.land - b.land);
+
+  const maxLand = Math.max(...items.map(i => i.land), vArea);
+  const villagePct = (vArea / maxLand) * 100;
+
+  el.footprint.innerHTML = items.map(item => {
+    const width = (item.land / maxLand) * 100;
+    const ratio = item.land / vArea;
+    let ratioTxt;
+    if (ratio < 0.01) ratioTxt = '< 1% pueblo';
+    else if (ratio < 1) ratioTxt = fmt(ratio*100, 0) + '% pueblo';
+    else if (ratio < 10) ratioTxt = fmt(ratio, 1) + '× pueblo';
+    else ratioTxt = fmt(ratio, 0) + '× pueblo';
+    const landTxt = item.land < 10 ? fmt(item.land, 2) :
+      item.land < 1000 ? fmt(item.land, 0) : fmt(item.land/100, 1) + ' km²';
+    return `<div class="fp-row ${item.key === state.source ? 'is-current' : ''}">
+      <div class="fp-name"><span class="dot" style="background:${item.color}"></span>${item.name}</div>
+      <div class="fp-bar-track">
+        <div class="fp-bar-fill" style="width:${width}%;background:${item.color}"></div>
+        <div class="fp-village-mark" style="left:${villagePct}%"></div>
+      </div>
+      <div class="fp-value">${landTxt} ha<small>${ratioTxt}</small></div>
+    </div>`;
+  }).join('');
+
+  el.footprintRef.innerHTML =
+    `<span>La línea vertical marca el área del pueblo: <strong>${fmt(vArea, 0)} ha</strong></span>` +
+    `<span>${fmt(state.houses,0)} casas × 200 m²</span>`;
+}
+
+/* ============================================================
+   PERFIL HORARIO
+   ============================================================ */
+function renderChart24(){
+  const s = SOURCES[state.source];
+  const p = state.plants[state.source];
+  const profile = PROFILES[state.source];
+  const meanProf = mean(profile);
+
+  const P_avg = state.houses * state.kwhPerHouse / 1000 / 8760;
+  const P_peak = P_avg * 2.6;
+  const demand = DEMAND_PROFILE.map(v => P_peak * v);
+  const prod = profile.map(v => p.cap * (v / meanProf) * (p.cf / 100));
+
+  const dMean = mean(demand);
+  const pMean = mean(prod);
+  const dNorm = demand.map(v => v / dMean);
+  const pNorm = prod.map(v => v / pMean);
+  const yMax = Math.max(...dNorm, ...pNorm, 1.5) * 1.05;
+
+  const W = 600, H = 220;
+  const padL = 50, padR = 14, padT = 16, padB = 30;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
+  const x = h => padL + (h / 23) * innerW;
+  const y = v => padT + innerH - (v / yMax) * innerH;
+  const hourW = innerW / 23;
+
+  let svg = `<svg viewBox="0 0 ${W} ${H}" class="chart24">`;
+
+  const yTicks = [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4].filter(v => v <= yMax);
+  yTicks.forEach(v => {
+    svg += `<line x1="${padL}" y1="${y(v)}" x2="${W-padR}" y2="${y(v)}" stroke="var(--line)" stroke-width="1" stroke-dasharray="2 3"/>`;
+    svg += `<text x="${padL-6}" y="${y(v)+3.5}" text-anchor="end" font-size="9.5" fill="var(--muted)" font-family="var(--mono)">${v}×</text>`;
+  });
+  svg += `<line x1="${padL}" y1="${y(0)}" x2="${W-padR}" y2="${y(0)}" stroke="var(--line)" stroke-width="1"/>`;
+  [0, 6, 12, 18, 23].forEach(h => {
+    svg += `<text x="${x(h)}" y="${H-10}" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="var(--mono)">${h}h</text>`;
+  });
+
+  for (let h = 0; h < 24; h++){
+    const d = dNorm[h], pr = pNorm[h];
+    if (d > pr) svg += `<rect x="${x(h)}" y="${y(d)}" width="${hourW}" height="${y(pr)-y(d)}" fill="var(--bad)" fill-opacity=".20"/>`;
+    else if (pr > d) svg += `<rect x="${x(h)}" y="${y(pr)}" width="${hourW}" height="${y(d)-y(pr)}" fill="var(--good)" fill-opacity=".16"/>`;
+  }
+
+  let dArea = `M ${x(0)} ${y(dNorm[0])}`;
+  for (let h = 1; h < 24; h++) dArea += ` L ${x(h)} ${y(dNorm[h])}`;
+  dArea += ` L ${x(23)} ${y(0)} L ${x(0)} ${y(0)} Z`;
+  svg += `<path d="${dArea}" fill="var(--ink)" fill-opacity=".07"/>`;
+
+  let dLine = `M ${x(0)} ${y(dNorm[0])}`;
+  for (let h = 1; h < 24; h++) dLine += ` L ${x(h)} ${y(dNorm[h])}`;
+  svg += `<path d="${dLine}" fill="none" stroke="var(--ink)" stroke-width="1.5" stroke-opacity=".45" stroke-dasharray="3 3"/>`;
+
+  let pLine = `M ${x(0)} ${y(pNorm[0])}`;
+  for (let h = 1; h < 24; h++) pLine += ` L ${x(h)} ${y(pNorm[h])}`;
+  svg += `<path d="${pLine}" fill="none" stroke="${s.color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+  svg += `<line x1="${padL+6}" y1="${padT-4}" x2="${padL+22}" y2="${padT-4}" stroke="${s.color}" stroke-width="2.6" stroke-linecap="round"/>`;
+  svg += `<text x="${padL+27}" y="${padT-1}" font-size="9.5" fill="var(--muted)" font-family="var(--mono)">PRODUCCIÓN</text>`;
+  svg += `<line x1="${padL+118}" y1="${padT-4}" x2="${padL+134}" y2="${padT-4}" stroke="var(--ink)" stroke-width="1.5" stroke-opacity=".45" stroke-dasharray="3 3"/>`;
+  svg += `<text x="${padL+139}" y="${padT-1}" font-size="9.5" fill="var(--muted)" font-family="var(--mono)">DEMANDA</text>`;
+  svg += '</svg>';
+  el.chart24.innerHTML = svg;
+
+  let deficitMWh = 0, surplusMWh = 0;
+  for (let h = 0; h < 24; h++){
+    if (demand[h] > prod[h]) deficitMWh += demand[h] - prod[h];
+    else surplusMWh += prod[h] - demand[h];
+  }
+
+  el.chartMeta.innerHTML =
+    `Producción media: <strong>${fmtMW(pMean)} MW</strong> · ` +
+    `Demanda media: <strong>${fmtMW(dMean)} MW</strong> · ` +
+    `Ratio: <strong>${fmt(pMean/dMean, 2)}×</strong>`;
+
+  let notes = '';
+  if (deficitMWh > 0.01){
+    notes += `<div class="chart-note"><span class="bad-dot"></span>` +
+      `Déficit horario: <strong>${fmt(deficitMWh, 1)} MWh/día</strong> · ` +
+      `≈ ${fmt(deficitMWh, 1)} MWh de batería o ${fmtMW(deficitMWh/24)} MW de respaldo.</div>`;
+  } else {
+    notes += `<div class="chart-note"><span class="good-dot"></span>` +
+      `Sin déficit horario: la planta cubre toda la demanda del día.</div>`;
+  }
+  if (surplusMWh > 0.01){
+    notes += `<div class="chart-note"><span class="good-dot"></span>` +
+      `Excedente: <strong>${fmt(surplusMWh, 1)} MWh/día</strong> que se almacenan o se pierden.</div>`;
+  }
+  el.chartNotes.innerHTML = notes;
+
+  return { deficitMWh, surplusMWh, dailyDemand: P_avg * 24 };
+}
+
+/* ============================================================
+   VEREDICTO
+   ============================================================ */
+function computeVerdict(coverage, deficitMWh, dailyDemand, landRatio, typicalCoverage){
+  const s = SOURCES[state.source];
+  const issues = [];
+  if (coverage < 0.95) issues.push(`no cubre la demanda anual (${fmt(coverage*100,0)}%)`);
+  else if (coverage > 5) issues.push(`está sobredimensionada ${fmt(coverage,0)}×`);
+  if (deficitMWh > dailyDemand * 0.15 && s.stability < 70)
+    issues.push(`necesita ~${fmt(deficitMWh,1)} MWh/día de respaldo`);
+  else if (deficitMWh > dailyDemand * 0.15)
+    issues.push(`déficit horario de ${fmt(deficitMWh,1)} MWh/día`);
+  if (landRatio > 5) issues.push(`ocuparía ${fmt(landRatio,0)}× el área del pueblo`);
+  if (typicalCoverage > 4) issues.push(`una planta típica sería ~${fmt(typicalCoverage,0)}× la demanda`);
+  else if (typicalCoverage < 0.25) issues.push(`necesitaría ~${fmt(1/typicalCoverage,0)} plantas típicas`);
+
+  if (issues.length === 0)
+    return { type:'good', icon:'✓', text:'Planta viable para este pueblo: cubre la demanda anual y horaria, con terreno y escala razonables.' };
+  if (issues.length === 1)
+    return { type:'warn', icon:'⚠', text:`Cubre la demanda anual, pero ${issues[0]}.` };
+  return { type:'bad', icon:'✗', text:`No es una buena opción para este pueblo: ${issues.join('; ')}.` };
+}
+
+/* ============================================================
+   ESCALA TÍPICA
+   ============================================================ */
+function renderTypical(){
+  const s = SOURCES[state.source];
+  const p = state.plants[state.source];
+  const typicalMW = (s.typical.min + s.typical.max) / 2;
+  const typicalAnnual = typicalMW * 8760 * (p.cf / 100);
+  const villageAnnual = state.houses * state.kwhPerHouse / 1000;
+  const vpp = typicalAnnual / villageAnnual;
+  const needed = villageAnnual / (8760 * (p.cf / 100));
+
+  let txt;
+  if (vpp >= 100) txt = `Una planta ${s.name.toLowerCase()} típica (${s.typical.min}–${s.typical.max} MW) abastecería <strong>${fmt(vpp,0)} pueblos</strong> como el tuyo. Solo necesitas <strong>${fmtMW(needed)} MW</strong>.`;
+  else if (vpp >= 2) txt = `Una planta ${s.name.toLowerCase()} típica (${s.typical.min}–${s.typical.max} MW) abastecería <strong>${fmt(vpp,1)} pueblos</strong> como el tuyo. Necesitas <strong>${fmtMW(needed)} MW</strong>.`;
+  else if (vpp >= 0.5) txt = `Una planta ${s.name.toLowerCase()} típica (${s.typical.min}–${s.typical.max} MW) abastecería el <strong>${fmt(vpp*100,0)}%</strong> de este pueblo. Necesitas <strong>${fmtMW(needed)} MW</strong>.`;
+  else txt = `Este pueblo necesita <strong>${fmtMW(needed)} MW</strong>, equivalente a <strong>${fmt(1/vpp,1)} plantas típicas</strong> ${s.name.toLowerCase()}s (${s.typical.min}–${s.typical.max} MW).`;
+  el.typicalBox.innerHTML = txt;
+}
+
+/* ============================================================
+   RENDER PRINCIPAL
+   ============================================================ */
+function render(){
+  const s = SOURCES[state.source];
+  const p = state.plants[state.source];
+
+  const demand = state.houses * state.kwhPerHouse / 1000;
+  const gen = p.cap * 8760 * (p.cf / 100);
+  const coverage = gen / demand;
+  const homes = gen * 1000 / state.kwhPerHouse;
+  const needed = demand / (8760 * (p.cf / 100));
+  const co2 = gen * s.co2 / 1000;
+  const land = p.cap * s.haPerMW;
+  const avgPow = demand / 8760;
+  const peakPow = avgPow * 2.6;
+  const balance = gen - demand;
+
+  el.housesOut.textContent = fmt(state.houses, 0);
+  el.kwhOut.textContent = fmt(state.kwhPerHouse, 0) + ' kWh/año';
+  el.demandOut.textContent = fmt(demand, 0) + ' MWh';
+  el.avgPowOut.textContent = fmt(avgPow, 2) + ' MW';
+  el.peakPowOut.textContent = fmt(peakPow, 2) + ' MW';
+
+  el.capOut.textContent = fmt(p.cap, 0) + ' MW';
+  el.cfOut.textContent = fmt(p.cf, 0) + ' %';
+  el.effOut.textContent = fmt(p.eff, 0) + ' %';
+
+  el.villageCount.textContent = fmt(state.houses, 0);
+  el.stageMeta.textContent = `${fmt(p.cap, 0)} MW · FC ${fmt(p.cf, 0)}%`;
+
+  let covText;
+  if (coverage >= 9.995) covText = fmt(coverage, 0) + '×';
+  else covText = fmt(coverage * 100, 0) + '%';
+  setGauge('gCoverage', Math.min(coverage, 1), covText);
+  setGauge('gCf', p.cf / 100, fmt(p.cf, 0) + '%');
+  setGauge('gEff', p.eff / 100, fmt(p.eff, 0) + '%');
+
+  el.kGen.textContent = fmt(gen, 0);
+  tweenNumber(el.kHomes, homes);
+  el.kNeeded.textContent = fmtMW(needed);
+  el.kCo2.textContent = fmt(co2, 0);
+  el.kLand.textContent = fmt(land, 0);
+
+  const balStr = (balance >= 0 ? '+' : '−') + fmt(Math.abs(balance), 0) + ' MWh';
+  el.kBalance.textContent = balStr;
+  el.kBalance.className = 'k-val ' + (balance >= 0 ? 'pos' : 'neg');
+
+  const co2Frac = Math.min(1, s.co2 / 900);
+  el.mCo2.style.width = (co2Frac * 100).toFixed(1) + '%';
+  el.mCo2.style.background = co2Frac > .66 ? 'var(--bad)' : co2Frac > .33 ? 'var(--warn)' : 'var(--good)';
+  el.mCo2Val.textContent = fmt(s.co2, 0) + ' g/kWh';
+
+  el.mStab.style.width = s.stability + '%';
+  el.mStab.style.background = s.stability >= 75 ? 'var(--good)' : s.stability >= 50 ? 'var(--warn)' : 'var(--bad)';
+  el.mStabVal.textContent = s.stability + ' / 100';
+
+  const landFrac = Math.min(1, land / Math.max(200, villageArea() * 5));
+  el.mLand.style.width = (landFrac * 100).toFixed(1) + '%';
+  el.mLand.style.background = 'var(--c)';
+  el.mLandVal.textContent = land < 1000 ? fmt(land, 0) + ' ha' : fmt(land / 100, 1) + ' km²';
+
+  if (state.running){
+    el.statusChip.textContent = coverage >= 1 ? 'Cubre la demanda' : 'Déficit · ' + fmt(coverage * 100, 0) + '%';
+  } else {
+    el.statusChip.textContent = 'En reposo';
+  }
+
+  paintVillage();
+  renderSourceStatuses(demand);
+  renderThresholds();
+  renderTable(demand);
+  renderFootprint(demand);
+  const chart = renderChart24();
+  renderRanking(demand);
+
+  const landRatio = land / villageArea();
+  const typicalMid = (s.typical.min + s.typical.max) / 2;
+  const typicalCoverage = (typicalMid * 8760 * (p.cf / 100)) / demand;
+  const v = computeVerdict(coverage, chart.deficitMWh, chart.dailyDemand, landRatio, typicalCoverage);
+  el.verdict.className = 'verdict ' + v.type;
+  el.verdict.innerHTML = `<span class="verdict-icon">${v.icon}</span><span class="verdict-text">${v.text}</span>`;
+  renderTypical();
+}
+
+/* ============================================================
+   TABLA
+   ============================================================ */
+function renderTable(demand){
+  el.compareBody.innerHTML = Object.keys(SOURCES).map(key => {
+    const s = SOURCES[key];
+    const p = state.plants[key];
+    const needed = demand / (8760 * (p.cf / 100));
+    const co2 = demand * s.co2 / 1000;
+    const land = needed * s.haPerMW;
+    const landTxt = land < 1000 ? fmt(land, 0) + ' ha' : fmt(land / 100, 1) + ' km²';
+    return `<tr class="${key === state.source ? 'is-current' : ''}" style="--sc:${s.color}">
+      <td><div class="src-cell"><span class="dot" style="background:${s.color}"></span>${s.name}</div></td>
+      <td class="num">${fmtMW(needed)} MW</td>
+      <td class="num">${fmt(co2, 0)} t</td>
+      <td class="num">${landTxt}</td>
+      <td><div class="mini-bar"><i style="width:${s.stability}%;background:${s.color}"></i></div></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ============================================================
+   SYNC UI DE FUENTE
+   ============================================================ */
+function syncSourceUI(){
+  const s = SOURCES[state.source];
+  const p = state.plants[state.source];
+
+  document.documentElement.style.setProperty('--c', s.color);
+
+  el.cap.min = s.cap.min; el.cap.max = s.cap.max; el.cap.step = s.cap.step;
+  el.cap.value = p.cap;
+  el.cf.min = s.cf.min; el.cf.max = s.cf.max; el.cf.step = 1; el.cf.value = p.cf;
+  el.eff.min = s.eff.min; el.eff.max = s.eff.max; el.eff.step = 1; el.eff.value = p.eff;
+
+  el.sourceHint.textContent = s.hint;
+  el.stageSource.textContent = s.name;
+
+  $$('.source-btn').forEach(b => b.classList.toggle('active', b.dataset.src === state.source));
+  $$('.scene').forEach(sc => sc.classList.toggle('active', sc.dataset.scene === state.source));
+
+  if (state.running) paintVillage();
+}
+
+/* ============================================================
+   EVENTOS
+   ============================================================ */
+el.houses.addEventListener('input', e => {
+  const h = snapHouses(sliderToHouses(+e.target.value));
+  state.houses = h;
+  buildVillage();
+  render();
+});
+el.kwh.addEventListener('input', e => {
+  state.kwhPerHouse = +e.target.value;
+  render();
+});
+el.sourceGrid.addEventListener('click', e => {
+  const btn = e.target.closest('.source-btn');
+  if (!btn || btn.dataset.src === state.source) return;
+  state.source = btn.dataset.src;
+  syncSourceUI();
+  render();
+});
+el.cap.addEventListener('input', e => { state.plants[state.source].cap = +e.target.value; render(); });
+el.cf.addEventListener('input', e => { state.plants[state.source].cf = +e.target.value; render(); });
+el.eff.addEventListener('input', e => { state.plants[state.source].eff = +e.target.value; render(); });
+
+el.powerBtn.addEventListener('click', () => {
+  state.running = !state.running;
+  el.stagePanel.classList.toggle('running', state.running);
+  el.plantStage.classList.toggle('running', state.running);
+  el.powerBtn.classList.toggle('is-on', state.running);
+  el.powerLabel.textContent = state.running ? 'Apagar planta' : 'Encender planta';
+  if (state.running){
+    housesEls.forEach(h => h.classList.remove('on'));
+    requestAnimationFrame(() => requestAnimationFrame(() => paintVillage()));
+  } else {
+    paintVillage();
+  }
+  render();
+});
+
+el.fitBtn.addEventListener('click', () => {
+  const p = state.plants[state.source];
+  const s = SOURCES[state.source];
+  const demand = state.houses * state.kwhPerHouse / 1000;
+  const needed = demand / (8760 * (p.cf / 100));
+  p.cap = Math.max(s.cap.min, Math.min(s.cap.max, Math.round(needed)));
+  el.cap.value = p.cap;
+  render();
+});
+
+el.criteriaChips.addEventListener('click', e => {
+  const btn = e.target.closest('.chip-btn');
+  if (!btn) return;
+  currentCriterion = btn.dataset.crit;
+  $$('.chip-btn', el.criteriaChips).forEach(b => b.classList.toggle('active', b.dataset.crit === currentCriterion));
+  render();
+});
+
+$('#themeBtn').addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  document.documentElement.setAttribute('data-theme', cur === 'light' ? 'dark' : 'light');
+});
+
+/* ============================================================
+   INIT
+   ============================================================ */
+buildTicks($('#gCoverageSvg'));
+buildTicks($('#gCfSvg'));
+buildTicks($('#gEffSvg'));
+el.houses.value = Math.round(housesToSlider(state.houses));
+buildVillage();
+syncSourceUI();
+render();
+</script>
+</body>
+</html>
